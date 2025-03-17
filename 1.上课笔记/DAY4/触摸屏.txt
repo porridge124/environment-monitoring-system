@@ -1,0 +1,134 @@
+手指获取触摸屏的坐标
+
+1.linux输入子设备原理 
+	输入设备：鼠标 键盘 麦克风 触摸屏.... 
+	当我们使用输入设备的时候，不同的设备就会产生不同的输入事件 
+	把所有的输入事件都保存在文件中 
+		/dev/input/event0/1/2/3....
+		
+	触摸屏对应的设备文件：/dev/input/event0
+	
+	Linux输入子系统原理：
+		在Linux中，虽然是用不同的文件保存了不同的事件，
+		为了方便系统对输入事件的处理 
+		使用了一个结构体来保存输入事件的信息
+		#include <linux/input.h>
+		
+		/*
+		 * The event structure itself
+		 */
+
+		struct input_event {
+			struct timeval time;
+			//事件发送的时间
+			__u16 type;//事件的类型 
+			/*
+				EV_SYN 	同步事件
+				EV_KEY 	按键事件 
+				EV_REL 	鼠标事件 
+				EV_ABS 	触摸事件 
+				引用结构体的成员变量 
+				struct input_event ev;
+					ev.type
+			*/
+			__u16 code;//事件的编码 
+			/*
+				根据type的不一样，编码的含义也不一样 
+				当type == EV_ABS 
+					code == ABS_X  代表X轴 
+					code == ABS_Y  代表y轴
+				当type == EV_KEY 
+					code 代表键值 
+						code == KEY_A 
+								KEY_B
+								...
+						code == BTN_TOUCH //把整个触摸屏当作按键来使用
+			*/
+			__s32 value;//事件的值 
+			/*
+				根据type和code的不同 代表的含义也就不一样 
+				当type == EV_ABS 
+					code == ABS_X  value代表x轴的坐标值 
+					code == ABS_Y  value代表y轴的坐标值
+					如果你要来获取x坐标 
+						前提:ev.type == EV_ABS && ev.code == ABS_X 
+								int x = ev.value;
+				当type == EV_KEY 
+					value表示按键的状态 
+						1 	按下按键 
+						0	松开按键
+			*/
+		};
+		
+		手指获取触摸屏的坐标：
+			坐标范围：600*1024
+			代码思路：
+				S1:打开触摸屏设备文件 
+					int tc_fd = open();
+					
+				S2:创建一个标准事件结构体来保存后面的信息
+					struct input_event ev;
+					int x,y;
+				S3:不停的来获取触摸事件的信息 
+					while(1)
+					{
+						//读取输入事件保存到ev中 
+						read(tc_fd,&ev,sizeof(ev));
+						
+						//判断不同的信息确定x坐标和y坐标的值
+						
+						
+						//打印x和y坐标的值 打印的最后一定记得＋ \n
+						
+						/*
+							当手指离开屏幕 退出循环 
+							条件：当type是EV_KEY 并且 code 是 BTN_TOUCH 
+									还有value的值为0的时候 
+									就是把整个屏幕当作一个按键 并且手指离开了屏幕
+									就可以break出来
+						*/
+					}
+					
+				上面这个代码中有一个死循环，会让我们一直卡在手指触摸获取坐标
+				
+				当手指离开屏幕的时候退出循环
+				
+				
+				任务：
+					请大家在使用触摸屏的时候，能够对你的最后离开触摸屏的位置进行一个判断 
+					把屏幕分成四块，当坐标在不同范围的时候，屏幕显示不同的颜色 
+					
+					在刚刚哪个代码立马 
+						最后判断手指离开屏幕的时候，请大家在里面要加上判断
+						if(手指离开屏幕了)
+						{
+							if(坐标范围在范围1)
+							{
+								整个屏幕显示一个颜色 
+								break;
+							}
+							//....
+						}
+						
+					为了方便颜色的显示 
+						专门写一个函数用来进行颜色的显示
+						//lcd清屏函数
+						void lcd_clear(int color)
+						{
+							int x,y;
+							for(y = 0;y < 800;y++)
+							{
+								for(x = 0;x < 480;x++)
+								{
+									Lcd_draw_point(x,y,color);
+								}
+							}
+						}
+						
+				
+		
+		
+		
+		
+		
+

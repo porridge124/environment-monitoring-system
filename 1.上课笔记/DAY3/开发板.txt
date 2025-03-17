@@ -1,0 +1,186 @@
+开发板 
+	用来跑程序
+	我们需要把PC上编写好的代码并且进行编译之后上传到开发板进行运行 
+	步骤： 
+		PC -- 交叉编译 -- 下载到开发板 -- 运行 
+	编译:
+		gcc xxx.c -o xxx 
+	交叉编译： 
+		arm-linux-gcc xxx.c -o xxx 
+1.常用工具和软件 
+	串口驱动  -- CH340 
+		安装驱动：CRT -->驱动程序 -->win10 -->CH341.exe -->点击安装 
+		怎么检测驱动是否安装成功？ 
+			设备管理器-->端口-->USB-Serial-CH340(COM几)
+	终端软件 
+		SecureCRT
+		连接步骤： 
+			文件 -- 快速连接 
+			协议:serial 
+			端口:COM几  -- 设备管理器里面有，每个电脑不一样
+			波特率:115200
+			流控:RTS/CTS 勾选去掉 
+			确定 
+		左上角有一个绿色的勾，按crtl+c进入终端界面 
+		进入之后先创建一个自己小组的目录： 
+			mkdir zf 
+			
+下载一个可执行程序到开发板上运行 
+	1.交叉编译  
+		arm-linux-gcc xxx.c -o xxx
+		
+	2.开始下载 
+		rx 你要下载的文件名(可执行程序) 按确认
+		点击传输 -- 发送(xModern 第三个) 
+		
+	3.给文件最高权限 
+		chmod 0777 xxx 
+		
+	4.开始运行 
+		./xxx 
+	
+---------------------------------------------------------------------
+屏幕操作 
+	屏幕文件的路径  "/dev/fb0"
+	
+	3.1 打开屏幕文件 
+		int lcd_fd = open("/dev/fb0",O_RDWR);
+		if(-1 == lcd_fd)
+		{
+			.......
+		}
+	.......
+		假如给屏幕染红 
+		屏幕的分辨率：800*480
+		像素点：可以显示颜色的点，一个像素点分成四部分(每个部分一个字节) 
+			A(透明度)   R(红色)   G(绿色)   B(蓝色) 
+				0         1         0         0      :红色 
+			  0x00       0xFF      0x00     0x00     :红色 
+			  0x00       0xCC      0x00     0x00     :浅红   
+		unsigned int RED = 0x00FF0000;
+		
+	3.2 写入数据(写一次)
+		write(lcd_fd,&RED,4); 
+		循环执行800*480次 
+		
+	3.3 关闭屏幕文件 
+		close 
+		
+	任务1： 
+		在屏幕中心画一个矩形  
+-------------------------------------------------------------
+	刚才使用write函数画矩形的时候，会发现屏幕上有些点的颜色写入会有延时，因为内存的读写速度跟硬件的读写速度
+	不一致
+	比如在内存中申请一块空间，空间的大小跟屏幕文件的大小一致，里面存储所有的颜色点，由驱动一次性把所有的数据完全
+	拷贝过去 -- 映射  
+	
+	假如:
+		int *plcd;//指向了屏幕文件的首地址-->第一个像素点的地址
+		给屏幕的第一个点染红： 
+			*plcd = 0x00FF0000;
+		给屏幕的第二个点染红: 
+			*(plcd+1) = 0x00FF0000; 
+		给屏幕上的任意一个点.(x0,y0)染红 
+		
+		(0,0)---------------------------------x 
+		|
+		|
+		|
+		|
+		|			.(x0,y0)
+		|
+		|
+		|
+		|
+		y
+		 *(plcd+y0*800+x0) = 0x00FF0000;
+		 
+	提供一个画点函数直接使用 
+	void Lcd_draw_point(int x,int y,int color)
+	{
+		if(x>=0&&x<800&&y>=0&&y<480)
+		{
+			*(plcd+y*800+x) = color;
+		}	
+	}
+	
+	给全屏染红： 
+	int x,y;
+	for(y=0;y<480;y++)
+	{
+		for(x=0;x<800;x++)
+		{
+			Lcd_draw_point(x,y,0x00FF0000);
+		}
+	}
+	问题就是让plcd指向屏幕的首地址 --> 映射 mmap 
+	NAME
+       mmap, munmap - map or unmap files or devices into memory
+			映射硬件设备的地址到内存中，用指针去接收
+	SYNOPSIS
+       #include <sys/mman.h>
+		映射:
+       void *mmap(void *addr, size_t length, int prot, int flags,int fd, off_t offset);
+			@addr:决定要把硬件设备映射到内存当中的哪一块地址 
+				由于用户不知道哪一块内存是空闲的，填NULL 
+				让系统自行分配 
+			@length：申请多大的内存 -->屏幕的大小 
+				800*480*4
+			@prot：映射过来可以对这块内存的操作权限 
+				PROT_READ   可读
+				PROT_WRITE  可写
+				PROT_EXEC   可执行  
+					PROT_READ|PROT_WRITE|PROT_EXEC  可读可写可执行
+			@flags：属性  
+				MAP_SHARED 
+			@fd：映射的文件描述符 -->屏幕的文件描述符 
+			@offset：偏移量  填0
+		返回值： 
+			成功的话返回映射过来的内存的首地址 --> 用plcd指针去接收
+	eg: 
+		plcd = mmap(NULL,........);
+		
+		
+		解映射:		  
+       int munmap(void *addr, size_t length);
+			@addr:就是映射过来的地址 -->plcd 
+			@length:800*480*4 
+			
+	测试： 
+		用映射的方式将屏幕染蓝色
+		
+	void Lcd_draw_point(int x,int y,int color);
+		
+	int main()
+	{
+		//1.打开屏幕 
+		//2.映射  
+			plcd = mmap(NULL,........);	
+		//3.全屏染蓝 
+		int x,y;
+		for(y=0;y<480;y++)
+		{
+			for(x=0;x<800;x++)
+			{
+				Lcd_draw_point(x,y,);
+			}
+		}
+		//4.解映射 
+		//5.关闭屏幕  
+	}
+	void Lcd_draw_point(int x,int y,int color)
+	{
+		if(x>=0&&x<800&&y>=0&&y<480)
+		{
+			*(plcd+y*800+x) = color;
+		}	
+	}
+	注意:plcd定义成全局变量   
+		
+	任务2： 
+		1.画一个圆 
+		2.画斜向的四区域的图
+		3.中心画一个三角形  
+		
+		
+		

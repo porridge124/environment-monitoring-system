@@ -1,0 +1,78 @@
+在C语言中代码的执行顺序从上到下，相当于一个人在执行代码
+在linux下可以创建一个线程，这个线程可以同时去运行另外一段代码 -->并发执行 
+一个进程可以创建出很多个线程帮助去同时运行多段代码 
+创建好的线程会自动去执行指定的任务-->一个函数(线程函数)  
+线程函数原型: 
+	void *(xxx)(void *)
+	
+step1:写一个线程函数:由创建出的线程自动执行 
+	void *func1(void *arg)
+	{
+		int i = 0;
+		while(1)
+		{
+			i++;
+			printf("i=%d\n",i);
+			sleep(1);
+		}
+	}
+	
+step2:
+	在linux下创建一个线程去执行上面这个函数
+	创建一个线程的API： 
+		NAME
+       pthread_create - create a new thread
+
+	SYNOPSIS
+       #include <pthread.h>
+
+       int pthread_create(pthread_t *thread, const pthread_attr_t *attr,void *(*start_routine) (void *), void *arg);
+				@thread：指向我们申请的线程的id    
+					比如：pthread_t id; 
+				@attr:设置线程的属性，填NULL为默认属性 
+				@start_routine：填让这个线程执行的函数的名字 
+				@arg：填NULL，不需要传参
+						
+       Compile and link with -pthread.
+		编译的时候需要带后缀  -pthread
+		编译格式： 
+			gcc xxx.c -o xxx -pthread 
+			arm-linux-gcc xxx.c -o xxx -pthread
+	eg: 
+		/*线程函数1*/
+		void *func1(void *arg)
+		{
+			int i = 0;
+			while(1)
+			{
+				i++;
+				printf("i=%d\n",i);
+				sleep(1);
+			}
+		}
+		/*线程函数2*/
+		void *func2(void *arg)
+		{
+			
+		}
+		int main()
+		{
+			//先创建一个线程 
+			pthread_t id;//申请一个id 
+			pthread_t id2;
+			pthread_create(&id,NULL,func1,NULL); 
+			pthread_create(&id2,NULL,func2,NULL); 
+			
+			while(1)
+			{
+				printf("hello\n");
+				sleep(1);
+			}
+			
+			return 0;
+		}
+		
+	上述代码的效果为 主函数与线程函数同时运行   
+	
+测试： 
+	

@@ -1,0 +1,171 @@
+主要任务：
+	在我们的开发板上显示图片
+	
+bmp图片解析
+	图片类型：bmp、png、jpg......
+	bmp:是一种无压缩的图片文件格式
+	有无压缩区别：文件大小上
+	
+    无压缩我们可以直接读取文件上的数据(按照一定的格式)
+	压缩后的图片就要通过解压的算法去读取--------而且需要第三方库
+	无压缩：保存的是每一个像素点的RGB颜色分量值
+	"1.bmp"
+	
+	打开： int fd_file = open("./1.bmp",O_RDWR);
+
+	我们要知道每一张bmp图片的组成部分：
+	
+	BITMAP文件头
+		偏移量        大小              用途
+		00h            2                 保存BM
+		02h            4                 文件大小
+	
+	DIB头
+	
+		12h           4                  位图的宽度
+位图宽度：每一行所占的像素点 
+	int width = 0;
+	lseek(fd_file,0x12,SEEK_SET);
+	int ret = read(fd_file,&width,4);
+	if(ret == -1)
+	{
+		printf("read eroor!!\n");
+		return -1;
+	}
+	printf("width == %d\n",width);
+	
+	width > 0:
+		从左至右保存每一个像素点
+	width < 0;
+	    从右至左保存每一个像素点
+	   
+		16h           4                  位图的高度
+位图的高度：有多少行
+    int high = 0;
+	........
+	
+	high >0 :
+	    从下至上保存像素点
+	high <0 :
+	    从上而下保存像素点
+	
+		1Ch          2                   色深
+色深：每个像素点所占的位数(bit)
+	int depth = 0;
+	......
+	
+	   色深 ==24 ；
+	        R G B
+	   色深 == 32；
+	        A R G B
+			
+	像素数组的偏移位置：36h
+像素数组：大小：abs(width)*abs(high)*(depth/8)
+    char p[abs(width)*abs(high)*(depth/8)];//BGRABGRABGRA
+	.........
+	memset(p,0,sizeof(p));//数组整体初始化0
+	    头文件：   #include <string.h>
+	lseek(fd_file,0x36,SEEK_SET);
+	read(fd_file,p,abs(width)*abs(high)*(depth/8));
+	
+abs的头文件：#include <stdlib.h>	
+----------------------------------------------------------------------------	
+大端模式和小端模式
+
+	小端模式：存储器的低地址，存数据的低字节
+	int a =0x12345678;
+	
+	地址：0x00     0x01     0x02     0x03
+	数据：0x78     0x56     0x34     0x12
+    
+	大端模式：存储器的低地址，存数据的高字节
+	int a =0x12345678
+    地址：0x00     0x01     0x02     0x03
+	数据：0x12     0x34     0x56     0x78
+	
+	char buf[4]    buf[0]  buf[1]  buf[2]  buf[3]
+	颜色分值 ： A  R  G  B
+	小端模式：
+	        buf[0]    buf[1]    buf[2]      buf[3]
+			 B          G        R           A
+	
+    ARGB:  0000 0000  0000 0000  0000 0000  0000 0000    
+			 A            R        G           B
+			 buf[3]      buf[2]    buf[1]      buf[0]
+	
+	unsigned int color = (buf[3]<<24)|(buf[2]<<16)|(buf[1]<<8)|buf[0];
+--------------------------------------------------------------------
+代码分析：	
+	unsigned char a,r,g,b;
+	int i=0;
+	unsigned int color;
+	int x,y;
+	int x0,y0;//图片刷新的起始坐标 
+	x0=0;
+	y0=0;
+	for(y=0;y<abs(high);y++)
+	{
+		for(x=0;x<abs(width);x++)
+		{
+			   b = p[i++];
+			   g = p[i++];
+			   r = p[i++];
+			   if(depth == 32)
+			   {
+					a=p[i++];
+			   }
+			   else//24位图就保存了RGB
+			   {
+					a=0;
+			   }
+		    color = (a<<24)|(r<<16)|(g<<8)|(b);
+			Lcd_draw_point(width>0?x+x0:x0+abs(width)-1-x,high>0?high-1-y+y0:y+y0,color);
+		}
+	}
+	
+	
+代码的实现步骤：
+	1.打开屏幕
+	2.映射
+		3.打开图片
+		4.读出图片的宽、高、色深
+		5.定义同样大小的数组去保存整个图片的像素
+		6.解析像素数组：取出颜色分值组成像素点
+		7.关闭图片
+	8.解映射
+	9.关闭屏幕
+
+bmp图片的生成方式：把自己的一张图片用画图的方式---->上方有一个调整大小--->像素--->去掉保持纵横比--->
+					自定义高宽---->点击文件--->另存为--->bmp图片
+测试：
+	在开发板上显示一张bmp格式的图片
+
+可以把上述的步骤当中的3-7封装成一个显示图片的子函数： 
+	int display_bmp(char *bmpname,int x0,int y0)
+	{
+		3.打开图片
+		int bmp_fd = open(bmpname,O_RDWR);
+		4.读出图片的宽、高、色深
+		5.定义同样大小的数组去保存整个图片的像素
+		6.解析像素数组：取出颜色分值组成像素点
+		7.关闭图片
+	}
+	调用函数： 
+		display_bmp("5.bmp",0,0);
+		display_bmp("6.bmp",0,0);
+	
+任务：做一个简易自动切换的电子相册 
+	
+	char *std[3] = {"1.bmp","2.bmp","3.bmp"};
+	
+    display_bmp(std[1],0,0);//显示2.bmp图片  
+	
+	任务：循环显示3张图片，每张图片延时5s.
+		延时函数: 
+			sleep(5);
+	
+	
+	
+	
+	
+	

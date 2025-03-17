@@ -1,0 +1,196 @@
+linux应用开发
+	在linux下所有的一切都是一个文件(硬件设备) 
+	在linux下操作文件的步骤:
+		step1:打开文件 open
+		step2:操作文件 read/write/lseek
+		step3:关闭文件 close 
+	C语言提供了这些函数，但是我们可以通过 man 去查询这些函数的使用  
+	语法： 
+		man 要查找的函数名 
+		
+step1: 打开文件 open
+	NAME
+       open - open and possibly create a file
+			打开或者创建一个文件 
+SYNOPSIS
+       #include <sys/types.h>
+       #include <sys/stat.h>
+       #include <fcntl.h>
+
+    int open(const char *pathname, int flags);
+		@pathname：路劲文件名的字符串  
+			"/mnt/hgfs/1.txt"  or  "./1.txt" 
+		@flags:打开这个文件的方式  
+			O_RDONLY   只读的形式打开文件
+			O_WRONLY   只写
+			O_RDWR     可读可写的方式打开文件 
+	
+	返回值： 
+		-1  表示打开文件失败
+		>0  打开文件成功  返回的整数称之为文件描述符(包含了这个文件的属性信息，后续的操作需要用到)
+	eg: 
+		#include <stdio.h>
+		#include <sys/types.h>
+        #include <sys/stat.h>
+        #include <fcntl.h>
+		
+		int main()
+		{
+			//1.打开文件 
+			int fd = open("./1.txt",O_RDWR);
+			if(fd == -1)
+			{
+				printf("open 1.txt error!!\n");
+			}
+			
+			printf("OK!\n");
+			
+			return 0;
+		}
+		
+step2:操作文件  
+		read 
+	NAME
+       read - read from a file descriptor
+			从一个文件描述符内读取数据
+	SYNOPSIS
+       #include <unistd.h>
+
+     ssize_t read(int fd, void *buf, size_t count);
+		@fd：文件描述符(表示一个已经打开的文件) --> open函数的返回值
+		@buf：指向一块内存的首地址，这块内存用来存储读取到数据 --> 数组 char buf[1024]={0};
+		@count:你想要从文件当中读取的字节数  
+	返回值：  
+		读取成功,返回实际读取到的字节数
+		失败返回 -1 
+		如果返回值为0表示？表示这个文件读完了或者这个文件为空  
+	
+	练习1：从一个2.txt文件中读取出数据并打印  
+			2.txt:nanhuadaxue!!!!! 
+		int main()
+		{
+			//1.打开文件 
+			//2.读取数据   char buf[1024]={0};
+			//3.打印数据   printf("%s\n",buf);
+			
+			return 0;
+		}
+------------------------------------------------------------------------
+	代码规范:
+		1.花括号{}成对打  上下对齐  每个括号独占一行  
+			int main()
+			{
+				
+				
+			}
+		2.分层次，多用TAB键进行缩进或者反向缩进	
+		
+------------------------------------------------------------------------		
+	写入数据  write 
+	NAME
+       write - write to a file descriptor
+			往一个文件中写入数据
+	SYNOPSIS
+       #include <unistd.h>
+
+    ssize_t write(int fd, const void *buf, size_t count);
+		@fd：文件描述符  
+		@buf:指向了一个地址，保存着即将写入文件的数据  char buf[]="abcd";
+		@count:你想写入的字节数  
+	返回值: 
+		失败返回-1 
+		成功返回实际写入的字节数  
+		
+	eg: 现在将"1234abcd"写入到空的3.txt 
+		int main()
+		{
+			//1.打开文件  
+			int fd = open("./3.txt",O_RDWR);
+			if(-1 == fd)
+			{
+				printf("open 3.txt failed!!\n");
+				return -1;
+			}
+			//2.写入数据
+			char buf[]="1234abcd";
+			int num = write(fd,buf,sizeof(buf));
+			if(num == -1)
+			{
+				printf("write error!!\n");
+				return -1;
+			}
+			printf("num:%d\n",num);
+			
+			return 0;
+		}
+现在有一个文件4.txt:aaabbbccc 
+	先打开文件 读取这个文件3个字节的数据:aaa 
+	接着写入3字节的数据"111"	
+	请问这个文件里面内容会变成？ 
+		aaabbbccc111
+		aaa111bbbccc
+		111bbbccc
+	答案: aaa111ccc 
+如果对一个已经打开的文件进行读写操作，文件的光标会随着读写往后移动	
+-----------------------------------------------------
+	lseek 
+	NAME
+       lseek - reposition read/write file offset
+		移动读写的光标	
+	SYNOPSIS
+       #include <sys/types.h>
+       #include <unistd.h>
+
+    off_t lseek(int fd, off_t offset, int whence);
+		@fd：文件描述符  
+		@offset：偏移量 
+			>0 往后偏移 
+			== 0 不移动 
+			<0 往前移动  
+		@whence：本次移动的光标的初始定位位置 
+			SEEK_SET：基于文件开头位置 
+			SEEK_END：基于文件末尾位置 
+			SEEK_CUR：基于文件当前位置 
+	新光标的位置 = 光标的初始定位位置 + 偏移量 
+	比如： 
+		lseek(fd,-5,SEEK_END);//新光标在文件末尾往前移动5个字节
+	返回值： 
+		返回新光标到文件开头的字节数  
+	比如： 
+		求出现在这个笔记的字节数？  
+			int size = lseek(fd,0,SEEK_END);
+	
+step3：关闭文件  
+	close 
+	NAME
+       close - close a file descriptor
+
+	SYNOPSIS
+       #include <unistd.h>
+
+     int close(int fd);
+		@fd:要关闭的文件的文件描述符
+
+任务2： 
+	 运行(open/read/write/lseek/close)完成一个未知文件(足够大)的完整拷贝 
+			文件IO.txt  -->   5.txt(空的)
+		思路:循环读写 
+	int main()
+	{
+		//1.打开两个文件 
+		//2.循环读写
+		char buf[1024]={0};
+		while(1)
+		{
+			read;
+			//判断read的返回值决定是否跳出循环
+			write;
+		}
+		//3.关闭两个文件
+	}
+		
+	
+		
+		
+	
+	
